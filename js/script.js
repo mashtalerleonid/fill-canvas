@@ -3,259 +3,212 @@ const ctx = canvas.getContext("2d");
 const lineBtn = document.querySelector("#line");
 const fillBtn = document.querySelector("#fill");
 
-const canvasHeight = canvas.height;
 const canvasWidth = canvas.width;
+const canvasHeight = canvas.height;
+
 const fillColor = "255,10,10";
 const bgdColor = "255,255,255";
 const strokeColor = "0,0,0";
-// console.log(canvasHeight, canvasWidth);
 
-let isFirstPoint = true;
-let isLineBtnPressed = true;
-let imagesData = [];
-let canvasData = [];
-let modifyData = [];
+let isFirstPoint = true; //Чи перша точка ламаної
+let isLineBtnPressed = true; //Чи натиснута кнопка "Малювати ламану"
+let isNotFilledPixel = true; //Чи є ще незафарбовані пікселі
+let xFirstPixel = 0; //Координати першого зафарбованого пікселя
+let yFirstPixel = 0;
+let imagesData = []; //Масив даних з Canvas
+let canvasData = []; //Масив пікселів
 
-lineBtn.addEventListener("click", lineHandle);
-fillBtn.addEventListener("click", fillHandle);
+lineBtn.addEventListener("click", hanleLine);
+fillBtn.addEventListener("click", handleFill);
 canvas.addEventListener("click", handleClick);
+window.addEventListener("load", handleLoad);
 
-window.addEventListener("load", () => {
+function handleLoad() {
   ctx.fillStyle = "rgb(255, 255, 255)";
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   ctx.beginPath();
   ctx.strokeStyle = "black";
-  ctx.lineWidth = 3;
-  // let canvasss = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-  // canvasData = canvasss.data;
-  // ctx.putImageData(canvass, 0, 0);
+  ctx.lineWidth = 4;
+}
 
-  // canvasData = canvass.data;
-  // let x = [];
-  // x = canvasss.data;
-  // console.log(canvasss.data);
-});
-
-function lineHandle() {
+function hanleLine() {
+  window.location.reload();
   fillBtn.classList.remove("button--active");
   lineBtn.classList.add("button--active");
   isLineBtnPressed = true;
+  isFirstPoint = true;
 }
 
-function fillHandle() {
+function handleFill() {
   fillBtn.classList.add("button--active");
   lineBtn.classList.remove("button--active");
   isLineBtnPressed = false;
 }
 
+// Малює лінії
+function drawLine(event) {
+  if (isFirstPoint) {
+    ctx.moveTo(event.layerX, event.layerY);
+    isFirstPoint = false;
+    return;
+  }
+  ctx.lineTo(event.layerX, event.layerY);
+  ctx.stroke();
+}
+
+// Перенесення масиву даних ImagesData  в масив пікселей (щоб зменшити кількість елементів масиву у 4 рази)
+function convertImageDataToData() {
+  imagesData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+  canvasData = [];
+
+  for (let i = 0; i < imagesData.data.length; i += 4) {
+    const str = `${imagesData.data[i]},${imagesData.data[i + 1]},${
+      imagesData.data[i + 2]
+    }`;
+    if (str === strokeColor || str === fillColor) {
+      canvasData.push(str);
+    } else {
+      canvasData.push(bgdColor);
+    }
+  }
+}
+
+// Встановлення початкового пікселя
+function setStartPixel(event) {
+  let pixel = ctx.createImageData(1, 1);
+  let fillColorArr = fillColor.split(",").map((el) => Number(el));
+  pixel.data[0] = fillColorArr[0];
+  pixel.data[1] = fillColorArr[1];
+  pixel.data[2] = fillColorArr[2];
+  pixel.data[3] = 255;
+
+  xFirstPixel = event.layerX;
+  yFirstPixel = event.layerY;
+
+  ctx.putImageData(pixel, xFirstPixel, yFirstPixel);
+}
+
+// Заповнення першої вертикальної лінії, використовуючи відомі координати початкового пікселя
+function fillFirstVerticalLine() {
+  for (let i = yFirstPixel - 1; i > 0; i -= 1) {
+    if (canvasData[i * canvasWidth + xFirstPixel] === bgdColor) {
+      canvasData[i * canvasWidth + xFirstPixel] = fillColor;
+    } else {
+      break;
+    }
+  }
+  for (let i = yFirstPixel + 1; i < canvasHeight; i += 1) {
+    if (canvasData[i * canvasWidth + xFirstPixel] === bgdColor) {
+      canvasData[i * canvasWidth + xFirstPixel] = fillColor;
+    } else {
+      break;
+    }
+  }
+}
+
+// Заповнення горизонтальними лініями
+function fillHorizontalLines() {
+  for (let k = 0; k < canvasHeight; k += 1) {
+    for (let i = 0; i < canvasWidth; i += 1) {
+      if (canvasData[k * canvasWidth + i] === fillColor) {
+        for (let j = i - 1; j > 0; j -= 1) {
+          let color = canvasData[k * canvasWidth + j];
+          if (color === bgdColor) {
+            isNotFilledPixel = true;
+            canvasData[k * canvasWidth + j] = fillColor;
+          } else if (color === fillColor) {
+            continue;
+          } else {
+            break;
+          }
+        }
+        for (let j = i + 1; j < canvasWidth; j += 1) {
+          let color = canvasData[k * canvasWidth + j];
+          if (color === bgdColor) {
+            isNotFilledPixel = true;
+            canvasData[k * canvasWidth + j] = fillColor;
+          } else if (color === fillColor) {
+            continue;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Заповнення вертикальними лініями
+function fillVerticalLines() {
+  for (let k = 0; k < canvasWidth; k += 1) {
+    for (let i = 0; i < canvasHeight; i += 1) {
+      if (canvasData[i * canvasWidth + k] === fillColor) {
+        for (let j = i - 1; j > 0; j -= 1) {
+          let color = canvasData[j * canvasWidth + k];
+          if (color === bgdColor) {
+            isNotFilledPixel = true;
+            canvasData[j * canvasWidth + k] = fillColor;
+          } else if (color === fillColor) {
+            continue;
+          } else {
+            break;
+          }
+        }
+
+        for (let j = i + 1; j < canvasHeight; j += 1) {
+          let color = canvasData[j * canvasWidth + k];
+          if (color === bgdColor) {
+            isNotFilledPixel = true;
+            canvasData[j * canvasWidth + k] = fillColor;
+          } else if (color === fillColor) {
+            continue;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Перенесення масиву пікселей в масив даних ImagesData
+function convertDataToImageData() {
+  for (let i = 0; i < canvasData.length; i += 1) {
+    let index = i * 4;
+    let color = canvasData[i].split(",").map((el) => Number(el));
+    imagesData.data[index] = color[0];
+    imagesData.data[index + 1] = color[1];
+    imagesData.data[index + 2] = color[2];
+    imagesData.data[index + 3] = 255;
+  }
+}
+
 function handleClick(event) {
   if (isLineBtnPressed) {
+    drawLine(event);
+  } else {
     if (isFirstPoint) {
-      ctx.moveTo(event.layerX, event.layerY);
-      isFirstPoint = false;
+      ctx.fillStyle = `rgb(${fillColor})`;
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
       return;
     }
 
-    ctx.lineTo(event.layerX, event.layerY);
-    ctx.stroke();
-  } else {
-    let x = event.layerX;
-    let y = event.layerY;
-    // canvasData = ctx.getImageData(0, 0, canvasWidth, canvasHeight).data;
-    // let canvas = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-    // let data = canvas.data;
-    let pixel = ctx.createImageData(1, 1);
-    pixel.data[0] = 255;
-    pixel.data[1] = 10;
-    pixel.data[2] = 10;
-    pixel.data[3] = 255;
+    setStartPixel(event);
 
-    ctx.putImageData(pixel, x, y);
+    convertImageDataToData();
 
-    imagesData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+    fillFirstVerticalLine();
 
-    canvasData = imagesData.data;
+    do {
+      isNotFilledPixel = false;
 
-    fill();
-  }
-}
+      fillHorizontalLines();
 
-// console.log(canvasData);
-function getPixelColor(data, index) {
-  // console.log(
-  //   `${data[index * 4]},${data[index * 4 + 1]},${data[index * 4 + 2]}`
-  // );
-  return `${data[index]},${data[index + 1]},${data[index + 2]}`;
-  // return `${data[index * 4]},${data[index * 4 + 1]},${data[index * 4 + 2]}`;
-}
+      fillVerticalLines();
+    } while (isNotFilledPixel);
 
-function fill() {
-  let count = 0;
-  while (count < 4) {
-    // Заповнення горизонтальними лініями
-    for (let k = 0; k < canvasHeight; k += 1) {
-      for (let i = 0; i < canvasWidth; i += 1) {
-        if (
-          getPixelColor(canvasData, k * canvasWidth * 4 + i * 4) === fillColor
-        ) {
-          for (let j = i - 1; j > 0; j -= 1) {
-            const colorIndex = k * canvasWidth * 4 + j * 4;
-            const pixelColor = getPixelColor(canvasData, colorIndex);
-            if (pixelColor === bgdColor) {
-              canvasData[colorIndex] = 255;
-              canvasData[colorIndex + 1] = 10;
-              canvasData[colorIndex + 2] = 10;
-              canvasData[colorIndex + 3] = 255;
-            } else if (pixelColor === fillColor) {
-              continue;
-            } else {
-              break;
-            }
-          }
-          for (let j = i + 1; j < canvasWidth; j += 1) {
-            const colorIndex = k * canvasWidth * 4 + j * 4;
-            const pixelColor = getPixelColor(canvasData, colorIndex);
-            if (pixelColor === bgdColor) {
-              canvasData[colorIndex] = 255;
-              canvasData[colorIndex + 1] = 10;
-              canvasData[colorIndex + 2] = 10;
-              canvasData[colorIndex + 3] = 255;
-            } else if (pixelColor === fillColor) {
-              continue;
-            } else {
-              break;
-            }
-          }
-        } else {
-        }
-      }
-    }
+    convertDataToImageData();
 
-    // Заповнення вертикальними лініями
-    for (let k = 0; k < canvasWidth; k += 1) {
-      for (let i = 0; i < canvasHeight; i += 1) {
-        if (
-          getPixelColor(canvasData, i * canvasWidth * 4 + k * 4) === fillColor
-        ) {
-          for (let j = i - 1; j > 0; j -= 1) {
-            const colorIndex = j * canvasWidth * 4 + k * 4;
-            const pixelColor = getPixelColor(canvasData, colorIndex);
-            if (pixelColor === bgdColor) {
-              canvasData[colorIndex] = 255;
-              canvasData[colorIndex + 1] = 10;
-              canvasData[colorIndex + 2] = 10;
-              canvasData[colorIndex + 3] = 255;
-            } else if (pixelColor === fillColor) {
-              continue;
-            } else {
-              break;
-            }
-          }
-
-          for (let j = i + 1; j < canvasHeight; j += 1) {
-            const colorIndex = j * canvasWidth * 4 + k * 4;
-            const pixelColor = getPixelColor(canvasData, colorIndex);
-            if (pixelColor === bgdColor) {
-              canvasData[colorIndex] = 255;
-              canvasData[colorIndex + 1] = 10;
-              canvasData[colorIndex + 2] = 10;
-              canvasData[colorIndex + 3] = 255;
-            } else if (pixelColor === fillColor) {
-              continue;
-            } else {
-              break;
-            }
-          }
-        } else {
-        }
-      }
-    }
     ctx.putImageData(imagesData, 0, 0);
-    count += 1;
   }
-
-  // let count = 0;
-  // // while (count < 5) {
-  // // Заповнення горизонтальними лініями
-  // for (let k = 0; k < canvasHeight; k += 1) {
-  //   for (let i = 0; i < canvasWidth; i += 1) {
-  //     if (getPixelColor(canvasData, k * canvasWidth + i) === fillColor) {
-  //       for (let j = i - 1; j > 0; j -= 1) {
-  //         const pixelColor = getPixelColor(canvasData, k * canvasWidth + j);
-  //         if (pixelColor === bgdColor) {
-  //           let filledPixel = ctx.createImageData(1, 1);
-  //           filledPixel.data[0] = 255;
-  //           filledPixel.data[1] = 10;
-  //           filledPixel.data[2] = 10;
-  //           filledPixel.data[3] = 255;
-  //           ctx.putImageData(filledPixel, j, k);
-  //         } else if (pixelColor === fillColor) {
-  //           continue;
-  //         } else {
-  //           break;
-  //         }
-  //       }
-  //       for (let j = i + 1; j < canvasWidth; j += 1) {
-  //         const pixelColor = getPixelColor(canvasData, k * canvasWidth + j);
-  //         if (pixelColor === bgdColor) {
-  //           let filledPixel = ctx.createImageData(1, 1);
-  //           filledPixel.data[0] = 255;
-  //           filledPixel.data[1] = 10;
-  //           filledPixel.data[2] = 10;
-  //           filledPixel.data[3] = 255;
-  //           ctx.putImageData(filledPixel, j, k);
-  //         } else if (pixelColor === fillColor) {
-  //           continue;
-  //         } else {
-  //           break;
-  //         }
-  //       }
-  //     } else {
-  //     }
-  //   }
-  // }
-  // canvasData = ctx.getImageData(0, 0, canvasWidth, canvasHeight).data;
-
-  // Заповнення вертикальними лініями
-  // for (let k = 0; k < canvasWidth; k += 1) {
-  //   for (let i = 0; i < canvasHeight; i += 1) {
-  //     if (getPixelColor(canvasData, i * canvasWidth + k) === fillColor) {
-  //       for (let j = i - 1; j > 0; j -= 1) {
-  //         const pixelColor = getPixelColor(canvasData, j * canvasWidth + k);
-  //         if (pixelColor === bgdColor) {
-  //           let filledPixel = ctx.createImageData(1, 1);
-  //           filledPixel.data[0] = 255;
-  //           filledPixel.data[1] = 10;
-  //           filledPixel.data[2] = 10;
-  //           filledPixel.data[3] = 255;
-  //           ctx.putImageData(filledPixel, k, j);
-  //         } else if (pixelColor === fillColor) {
-  //           continue;
-  //         } else {
-  //           break;
-  //         }
-  //       }
-
-  //       for (let j = i + 1; j < canvasHeight; j += 1) {
-  //         const pixelColor = getPixelColor(canvasData, j * canvasWidth + k);
-  //         if (pixelColor === bgdColor) {
-  //           let filledPixel = ctx.createImageData(1, 1);
-  //           filledPixel.data[0] = 255;
-  //           filledPixel.data[1] = 10;
-  //           filledPixel.data[2] = 10;
-  //           filledPixel.data[3] = 255;
-  //           ctx.putImageData(filledPixel, k, j);
-  //         } else if (pixelColor === fillColor) {
-  //           continue;
-  //         } else {
-  //           break;
-  //         }
-  //       }
-  //     } else {
-  //     }
-  //   }
-  // }
-
-  // count += 1;
-  // }
 }

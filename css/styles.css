@@ -29,4 +29,5 @@ body {
 
 .button--active {
   background-color: sandybrown;
+  font-weight: bold;
 }
